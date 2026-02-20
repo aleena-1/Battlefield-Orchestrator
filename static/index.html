@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BridgeIT | Command Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 450px; border-radius: 12px; z-index: 1; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-white p-6 font-sans">
+    <div class="max-w-7xl mx-auto">
+        <header class="flex justify-between items-center mb-6 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl">
+            <div>
+                <h1 class="text-3xl font-bold text-emerald-500 italic">BridgeIT</h1>
+                <p class="text-xs text-slate-400 tracking-widest uppercase text-[10px]">Collaborative Edge Intelligence Hub</p>
+            </div>
+            <div class="text-right">
+                <span class="block text-slate-500 uppercase font-bold text-[10px]">Detection Accuracy</span>
+                <div class="text-3xl font-mono text-emerald-400 drop-shadow-md" id="accuracy">Acc: 0.0%</div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 space-y-4">
+                <div id="map" class="border border-slate-700 shadow-inner"></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <button onclick="triggerFail()" class="bg-red-600 p-4 rounded-lg font-bold hover:bg-red-700 transition transform active:scale-95 shadow-lg border border-red-500/50">Simulate DDIL Failure</button>
+                    <button onclick="triggerCyber()" class="bg-orange-600 p-4 rounded-lg font-bold hover:bg-orange-700 transition transform active:scale-95 shadow-lg border border-orange-500/50">Simulate Cyber Attack</button>
+                </div>
+            </div>
+
+            <div class="flex flex-col space-y-4">
+                <div class="bg-slate-800 rounded-xl border border-slate-700 p-5 shadow-xl flex-grow overflow-hidden flex flex-col">
+                    <h2 class="text-emerald-500 font-bold mb-4 text-xs uppercase border-b border-slate-700 pb-2">Live Node Telemetry</h2>
+                    <div id="telemetry" class="space-y-3 flex-grow overflow-y-auto custom-scroll pr-2"></div>
+                    <button onclick="window.open('/export-mission')" class="bg-slate-700 p-2 rounded text-[10px] mt-4 w-full hover:bg-slate-600 transition uppercase font-bold tracking-widest">Export Mission "Black Box"</button>
+                </div>
+
+                <div class="bg-black rounded-xl border border-slate-700 p-4 shadow-inner">
+                    <h2 class="text-slate-500 font-bold mb-2 text-[10px] uppercase">Mission Log</h2>
+                    <div id="mission-log" class="h-32 overflow-y-auto font-mono text-[10px] text-emerald-500 custom-scroll leading-relaxed">
+                        > Initializing BridgeIT Orchestrator...<br>> Protocols: ONLINE
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map', {zoomControl: false}).setView([17.4065, 78.4772], 12);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+        let markers = {};
+
+        function addLog(msg) {
+            const logBox = document.getElementById('mission-log');
+            const timestamp = new Date().toLocaleTimeString([], {hour12: false});
+            logBox.innerHTML += `<br><span class="text-slate-600">[${timestamp}]</span> ${msg}`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        async function update() {
+            try {
+                const res = await fetch('/status');
+                const data = await res.json();
+                document.getElementById('accuracy').innerText = "Acc: " + data.accuracy + "%";
+                const tel = document.getElementById('telemetry');
+                tel.innerHTML = '';
+
+                for (let id in data.nodes) {
+                    const n = data.nodes[id];
+                    
+                    // Kill Chain Visual Logic
+                    let statusColor = '#10b981'; // Green
+                    if (n.security_status === "SUSPICIOUS") statusColor = '#eab308'; // Yellow
+                    if (n.security_status === "QUARANTINED" || !n.is_connected) statusColor = '#ef4444'; // Red
+
+                    if (!markers[id]) markers[id] = L.circleMarker([n.lat, n.lon]).addTo(map);
+                    markers[id].setStyle({ color: statusColor, fillColor: statusColor, fillOpacity: 0.6, radius: 8 });
+                    markers[id].bindTooltip(`${n.node_id} | ${n.latency_ms}ms`);
+
+                    tel.innerHTML += `
+                        <div class="p-3 bg-slate-900 rounded border-l-2" style="border-color: ${statusColor}">
+                            <div class="flex justify-between items-center mb-1 text-[10px]">
+                                <span class="font-bold">${n.node_id}</span>
+                                <span class="text-blue-400 font-mono">${n.latency_ms}ms</span>
+                            </div>
+                            <div class="w-full bg-slate-700 h-1 rounded-full overflow-hidden mb-1">
+                                <div class="bg-emerald-500 h-full transition-all duration-700" style="width: ${n.workload_share}%"></div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-y-1 text-[9px] text-slate-500 font-mono">
+                                <span>BATT: ${n.battery}%</span>
+                                <span class="text-right">SHARD: ${n.workload_share.toFixed(1)}%</span>
+                                <span class="text-emerald-600 font-bold uppercase text-[8px]">LIFE: ${n.ttf_minutes}m</span>
+                                <span class="text-right uppercase text-[8px]">${n.security_status}</span>
+                            </div>
+                        </div>`;
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function triggerFail() { 
+            addLog("<span class='text-red-400'>ALERT:</span> Triggering DDIL Connectivity Failure...");
+            const res = await fetch('/simulate-failure', {method: 'POST'}); 
+            const data = await res.json();
+            addLog(data.message);
+            update(); 
+        }
+
+        async function triggerCyber() {
+            addLog("<span class='text-orange-400 font-bold'>CTI:</span> Analyzing Indicators of Compromise...");
+            const res = await fetch('/cyber-scan', {method: 'POST'});
+            const data = await res.json();
+            addLog(data.message);
+            update();
+        }
+
+        setInterval(update, 2000); update();
+    </script>
+</body>
+</html>
