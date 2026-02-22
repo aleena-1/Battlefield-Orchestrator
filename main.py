@@ -1,11 +1,14 @@
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, PlainTextResponse
 from engine import Orchestrator
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 import random
 
 app = FastAPI(title="BridgeIT Battlefield Orchestrator")
 orchestrator = Orchestrator()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def get_index(): return FileResponse("static/index.html")
