@@ -1,126 +1,654 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>BridgeIT | Command Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        #map { height: 450px; border-radius: 12px; z-index: 1; }
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
-        .custom-scroll::-webkit-scrollbar-track { background: #1e293b; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-    </style>
+<meta charset="UTF-8">
+<title>BridgeIT | CTI Command v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+:root{
+  --bg:#040c12;--surf:#091520;--surf2:#0d1f2d;--b1:#142232;--b2:#1e3348;
+  --green:#00ff88;--cyan:#00d4ff;--yellow:#ffd700;--orange:#ff8c00;
+  --red:#ff2244;--purple:#a855f7;--text:#c5d8e8;--muted:#3d5a72;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:'Rajdhani',sans-serif;font-size:13px;}
+body::before{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,255,136,.007) 3px,rgba(0,255,136,.007) 4px);}
+
+/* HEADER */
+#hdr{display:flex;align-items:center;justify-content:space-between;padding:0 18px;height:50px;
+  background:var(--surf);border-bottom:1px solid var(--b2);flex-shrink:0;z-index:10;}
+.logo{font-family:'Orbitron',monospace;font-size:17px;font-weight:900;color:var(--green);letter-spacing:4px;}
+.logo span{font-size:7px;display:block;color:var(--muted);letter-spacing:3px;
+  font-family:'Share Tech Mono',monospace;margin-top:1px;}
+.hstats{display:flex;gap:18px;}
+.hs{text-align:center;}
+.hs-v{font-family:'Share Tech Mono',monospace;font-size:15px;color:var(--cyan);line-height:1;}
+.hs-l{font-size:7px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.tbadge{font-family:'Orbitron',monospace;font-size:9px;font-weight:700;padding:5px 12px;
+  border-radius:2px;letter-spacing:2px;border:1px solid;text-transform:uppercase;transition:all .4s;}
+.tCLEAR  {color:var(--green); border-color:var(--green); background:rgba(0,255,136,.07);}
+.tLOW    {color:var(--cyan);  border-color:var(--cyan);  background:rgba(0,212,255,.07);}
+.tMEDIUM {color:var(--yellow);border-color:var(--yellow);background:rgba(255,215,0,.07);}
+.tHIGH   {color:var(--orange);border-color:var(--orange);background:rgba(255,140,0,.10);animation:pls 1.5s infinite;}
+.tCRITICAL{color:var(--red); border-color:var(--red);   background:rgba(255,34,68,.12); animation:pls .8s infinite;}
+@keyframes pls{0%,100%{opacity:1}50%{opacity:.5}}
+#ws-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block;
+  margin-left:8px;transition:background .3s;}
+#ws-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green);}
+
+/* MAIN LAYOUT — fixed two columns */
+#wrap{display:flex;height:calc(100vh - 50px);overflow:hidden;}
+
+/* LEFT — map area with kill chain bar + tab switcher (Map / Topology) */
+#left{display:flex;flex-direction:column;width:calc(100% - 400px);min-width:480px;
+  border-right:1px solid var(--b1);flex-shrink:0;}
+
+/* RIGHT — always-visible scrollable intel panel */
+#right{width:400px;flex-shrink:0;overflow-y:auto;background:var(--bg);}
+#right::-webkit-scrollbar{width:3px;}
+#right::-webkit-scrollbar-thumb{background:var(--b2);}
+
+/* KILL CHAIN BAR */
+#kcbar{background:var(--surf);border-bottom:1px solid var(--b2);padding:7px 14px;flex-shrink:0;}
+.kc-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.kc-lbl{font-family:'Orbitron',monospace;font-size:7px;color:var(--muted);letter-spacing:2px;}
+.kc-prog{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--yellow);}
+.kc-row{display:flex;gap:2px;}
+.kcs{flex:1;padding:5px 2px;text-align:center;border:1px solid var(--b1);border-radius:2px;
+  font-size:7px;font-family:'Orbitron',monospace;color:var(--muted);transition:all .5s;cursor:default;}
+.kcs.on{color:#fff;border-color:currentColor;}
+.kcs .ttp{font-size:5.5px;display:block;margin-top:1px;opacity:.7;}
+.kcs .cv{font-size:6px;display:block;margin-top:1px;}
+
+/* LEFT TABS (Map / Topology only) */
+#tab-bar{display:flex;background:var(--surf);border-bottom:1px solid var(--b2);flex-shrink:0;}
+.tab{flex:1;padding:7px 4px;font-family:'Orbitron',monospace;font-size:8px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;cursor:pointer;text-align:center;
+  color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;}
+.tab.active{color:var(--green);border-bottom-color:var(--green);}
+.tab:hover{color:var(--text);}
+.panel{display:none;flex:1;flex-direction:column;overflow:hidden;}
+.panel.active{display:flex;}
+
+/* MAP */
+#map{height:100%;width:100%;}
+.leaflet-container{background:#040c12!important;}
+.leaflet-tooltip{background:var(--surf2)!important;border:1px solid var(--b2)!important;
+  color:var(--text)!important;font-family:'Share Tech Mono',monospace!important;
+  font-size:10px!important;border-radius:3px!important;}
+
+/* TOPOLOGY */
+#topo-wrap{flex:1;overflow:hidden;}
+#topo-svg{width:100%;height:100%;}
+
+/* ACTION BAR */
+#actbar{display:flex;gap:5px;padding:8px 10px;background:var(--surf);
+  border-top:1px solid var(--b1);flex-shrink:0;}
+.btn{flex:1;padding:7px 3px;font-family:'Orbitron',monospace;font-size:7.5px;font-weight:700;
+  letter-spacing:.3px;text-transform:uppercase;border:1px solid;border-radius:2px;
+  cursor:pointer;transition:all .2s;background:transparent;}
+.btn:active{transform:scale(.96);}
+.br{color:var(--red);   border-color:var(--red);}    .br:hover{background:rgba(255,34,68,.12);}
+.bo{color:var(--orange);border-color:var(--orange);}  .bo:hover{background:rgba(255,140,0,.10);}
+.bc{color:var(--cyan);  border-color:var(--cyan);}    .bc:hover{background:rgba(0,212,255,.08);}
+.bg{color:var(--green); border-color:var(--green);}   .bg:hover{background:rgba(0,255,136,.08);}
+.bp{color:var(--purple);border-color:var(--purple);}  .bp:hover{background:rgba(168,85,247,.08);}
+
+/* RIGHT PANEL SECTIONS */
+.psec{border-bottom:1px solid var(--b1);padding:11px 13px;}
+.ptitle{font-family:'Orbitron',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;
+  text-transform:uppercase;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;}
+.pbadge{background:var(--b2);padding:1px 6px;border-radius:2px;font-size:7px;color:var(--cyan);}
+
+/* NODE CARDS */
+.ncard{padding:7px 9px;margin-bottom:5px;background:rgba(9,21,32,.8);
+  border:1px solid var(--b1);border-left:3px solid;border-radius:2px;
+  cursor:pointer;transition:background .2s;}
+.ncard:hover{background:rgba(20,34,50,.8);}
+.ntop{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;}
+.nid{font-family:'Share Tech Mono',monospace;font-size:10px;font-weight:bold;}
+.nlat{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--cyan);}
+.bb{width:100%;height:2px;background:var(--b1);border-radius:1px;margin-bottom:3px;}
+.bf{height:100%;border-radius:1px;transition:width .7s;}
+.nm{display:grid;grid-template-columns:1fr 1fr;gap:2px;
+  font-size:8px;color:var(--muted);font-family:'Share Tech Mono',monospace;}
+@keyframes enc-flicker{0%,100%{opacity:1}45%{opacity:.6}50%{opacity:.2}55%{opacity:.7}}
+
+/* SOC LOG */
+#soclog{height:85px;overflow-y:auto;font-family:'Share Tech Mono',monospace;font-size:8px;
+  padding:4px;background:rgba(0,0,0,.5);border:1px solid var(--b1);border-radius:2px;
+  line-height:1.7;margin-bottom:6px;}
+#soclog::-webkit-scrollbar{width:2px;}
+#node-sel{width:100%;background:var(--surf);border:1px solid var(--b1);color:var(--text);
+  padding:5px 8px;border-radius:2px;font-family:'Share Tech Mono',monospace;
+  font-size:9px;margin-bottom:6px;}
+.socgrid{display:grid;grid-template-columns:1fr 1fr;gap:3px;}
+
+/* TIMELINE */
+.tl-item{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--b1);align-items:flex-start;}
+.tl-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+.tl-body{font-family:'Share Tech Mono',monospace;font-size:8px;line-height:1.5;}
+.tl-hd{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.tl-cv{font-size:6.5px;padding:1px 4px;border-radius:1px;}
+.empty-msg{color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:8px;
+  text-align:center;padding:14px 0;}
+
+/* IOC FEED */
+.ioc-row{display:flex;align-items:flex-start;gap:7px;padding:5px 0;border-bottom:1px solid var(--b1);}
+.it{font-size:7px;font-weight:bold;padding:2px 4px;border-radius:2px;
+  white-space:nowrap;flex-shrink:0;letter-spacing:.5px;}
+.it.hash{background:rgba(168,85,247,.2);color:var(--purple);border:1px solid var(--purple);}
+.it.ip  {background:rgba(255,140,0,.2); color:var(--orange);border:1px solid var(--orange);}
+.it.dom {background:rgba(255,34,68,.2); color:var(--red);   border:1px solid var(--red);}
+.it.scan{background:rgba(0,212,255,.2); color:var(--cyan);  border:1px solid var(--cyan);}
+.it.reg {background:rgba(255,215,0,.15);color:var(--yellow);border:1px solid var(--yellow);}
+.iv{font-family:'Share Tech Mono',monospace;font-size:8px;word-break:break-all;}
+.id2{font-family:'Share Tech Mono',monospace;font-size:7px;color:var(--muted);}
+.cb{width:26px;height:2px;background:var(--b1);border-radius:1px;margin-top:2px;}
+.cf{height:100%;background:var(--green);border-radius:1px;}
+
+/* MITRE MATRIX */
+.tactic{margin-bottom:9px;}
+.tac-n{font-size:8px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;
+  margin-bottom:4px;font-family:'Orbitron',monospace;}
+.chips{display:flex;flex-wrap:wrap;gap:3px;}
+.chip{font-family:'Share Tech Mono',monospace;font-size:7px;padding:3px 6px;border-radius:2px;
+  border:1px solid var(--b1);color:var(--muted);transition:all .3s;}
+.chip.active{border-color:var(--red);color:var(--red);background:rgba(255,34,68,.1);
+  box-shadow:0 0 8px rgba(255,34,68,.2);animation:glow 2s infinite;}
+@keyframes glow{0%,100%{box-shadow:0 0 8px rgba(255,34,68,.2)}50%{box-shadow:0 0 14px rgba(255,34,68,.45)}}
+
+/* DEFENDER SCORE */
+.score-big{text-align:center;padding:10px 0 14px;}
+.score-num{font-family:'Orbitron',monospace;font-size:50px;font-weight:900;line-height:1;}
+.score-grade{font-family:'Orbitron',monospace;font-size:18px;font-weight:700;margin-top:3px;}
+.score-sub{font-size:8px;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:3px;}
+.sbar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.sbar-lbl{font-size:8px;color:var(--muted);width:80px;flex-shrink:0;
+  font-family:'Share Tech Mono',monospace;text-transform:uppercase;}
+.sbar-track{flex:1;height:5px;background:var(--b1);border-radius:3px;overflow:hidden;}
+.sbar-fill{height:100%;border-radius:3px;transition:width 1s;}
+.sbar-val{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--cyan);
+  width:28px;text-align:right;flex-shrink:0;}
+.sg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;}
+.sg-c{background:var(--surf2);border:1px solid var(--b2);border-radius:3px;
+  padding:7px 6px;text-align:center;}
+.sg-v{font-family:'Share Tech Mono',monospace;font-size:16px;color:var(--cyan);}
+.sg-l{font-size:7px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:1px;}
+</style>
 </head>
-<body class="bg-slate-900 text-white p-6 font-sans">
-    <div class="max-w-7xl mx-auto">
-        <header class="flex justify-between items-center mb-6 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl">
-            <div>
-                <h1 class="text-3xl font-bold text-emerald-500 italic">BridgeIT</h1>
-                <p class="text-xs text-slate-400 tracking-widest uppercase text-[10px]">Collaborative Edge Intelligence Hub</p>
-            </div>
-            <div class="text-right">
-                <span class="block text-slate-500 uppercase font-bold text-[10px]">Detection Accuracy</span>
-                <div class="text-3xl font-mono text-emerald-400 drop-shadow-md" id="accuracy">Acc: 0.0%</div>
-            </div>
-        </header>
+<body>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 space-y-4">
-                <div id="map" class="border border-slate-700 shadow-inner"></div>
-                <div class="grid grid-cols-2 gap-4">
-                    <button onclick="triggerFail()" class="bg-red-600 p-4 rounded-lg font-bold hover:bg-red-700 transition transform active:scale-95 shadow-lg border border-red-500/50">Simulate DDIL Failure</button>
-                    <button onclick="triggerCyber()" class="bg-orange-600 p-4 rounded-lg font-bold hover:bg-orange-700 transition transform active:scale-95 shadow-lg border border-orange-500/50">Simulate Cyber Attack</button>
-                </div>
-            </div>
+<!-- HEADER -->
+<div id="hdr">
+  <div class="logo">BRIDGEIT<span>CTI COMMAND · DDIL ORCHESTRATOR v2</span></div>
+  <div class="hstats">
+    <div class="hs"><div class="hs-v" id="h-acc">--.-</div><div class="hs-l">Detection</div></div>
+    <div class="hs"><div class="hs-v" id="h-ioc">0</div><div class="hs-l">IOCs</div></div>
+    <div class="hs"><div class="hs-v" id="h-enc">0</div><div class="hs-l">Encrypted</div></div>
+    <div class="hs"><div class="hs-v" id="h-score">--</div><div class="hs-l">Def.Score</div></div>
+    <div class="hs"><div class="hs-v" id="h-cvss" style="color:var(--orange)">0.0</div><div class="hs-l">Avg CVSS</div></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div id="threat-badge" class="tbadge tCLEAR">THREAT: CLEAR</div>
+    <div id="ws-dot" title="WebSocket status"></div>
+  </div>
+</div>
 
-            <div class="flex flex-col space-y-4">
-                <div class="bg-slate-800 rounded-xl border border-slate-700 p-5 shadow-xl flex-grow overflow-hidden flex flex-col">
-                    <h2 class="text-emerald-500 font-bold mb-4 text-xs uppercase border-b border-slate-700 pb-2">Live Node Telemetry</h2>
-                    <div id="telemetry" class="space-y-3 flex-grow overflow-y-auto custom-scroll pr-2"></div>
-                    <button onclick="window.open('/export-mission')" class="bg-slate-700 p-2 rounded text-[10px] mt-4 w-full hover:bg-slate-600 transition uppercase font-bold tracking-widest">Export Mission "Black Box"</button>
-                </div>
+<!-- MAIN WRAP -->
+<div id="wrap">
 
-                <div class="bg-black rounded-xl border border-slate-700 p-4 shadow-inner">
-                    <h2 class="text-slate-500 font-bold mb-2 text-[10px] uppercase">Mission Log</h2>
-                    <div id="mission-log" class="h-32 overflow-y-auto font-mono text-[10px] text-emerald-500 custom-scroll leading-relaxed">
-                        > Initializing BridgeIT Orchestrator...<br>> Protocols: ONLINE
-                    </div>
-                </div>
-            </div>
-        </div>
+  <!-- ═══ LEFT — Map + Topology + Kill Chain ═══ -->
+  <div id="left">
+
+    <!-- Kill Chain Bar -->
+    <div id="kcbar">
+      <div class="kc-hdr">
+        <span class="kc-lbl">⚠ WANNACRY KILL CHAIN — LAZARUS GROUP / APT38</span>
+        <span class="kc-prog" id="kc-prog">Phase 0 / 7 — Inactive</span>
+      </div>
+      <div class="kc-row" id="kc-stages"></div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        const map = L.map('map', {zoomControl: false}).setView([17.4065, 78.4772], 12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-        let markers = {};
+    <!-- Tab bar: Map / Topology -->
+    <div id="tab-bar">
+      <div class="tab active" onclick="switchTab('map')">🗺 Battlefield Map</div>
+      <div class="tab" onclick="switchTab('topo')">🔗 Network Topology</div>
+      <div class="tab" onclick="switchTab('score')">🏆 Defender Score</div>
+    </div>
 
-        function addLog(msg) {
-            const logBox = document.getElementById('mission-log');
-            const timestamp = new Date().toLocaleTimeString([], {hour12: false});
-            logBox.innerHTML += `<br><span class="text-slate-600">[${timestamp}]</span> ${msg}`;
-            logBox.scrollTop = logBox.scrollHeight;
-        }
+    <!-- MAP panel -->
+    <div class="panel active" id="tab-map">
+      <div id="map"></div>
+    </div>
 
-        async function update() {
-            try {
-                const res = await fetch('/status');
-                const data = await res.json();
-                document.getElementById('accuracy').innerText = "Acc: " + data.accuracy + "%";
-                const tel = document.getElementById('telemetry');
-                tel.innerHTML = '';
+    <!-- TOPOLOGY panel -->
+    <div class="panel" id="tab-topo">
+      <div id="topo-wrap"><svg id="topo-svg"></svg></div>
+    </div>
 
-                for (let id in data.nodes) {
-                    const n = data.nodes[id];
-                    
-                    // Kill Chain Visual Logic
-                    let statusColor = '#10b981'; // Green
-                    if (n.security_status === "SUSPICIOUS") statusColor = '#eab308'; // Yellow
-                    if (n.security_status === "QUARANTINED" || !n.is_connected) statusColor = '#ef4444'; // Red
+    <!-- SCORE panel -->
+    <div class="panel" id="tab-score" style="overflow-y:auto;padding:14px;">
+      <div class="score-big">
+        <div class="score-num" id="sc-num" style="color:var(--green)">--</div>
+        <div class="score-grade" id="sc-grade" style="color:var(--muted)">Awaiting data</div>
+        <div class="score-sub">DEFENDER PERFORMANCE / 100</div>
+      </div>
+      <div id="score-bars"></div>
+      <div class="sg" id="score-grid"></div>
+    </div>
 
-                    if (!markers[id]) markers[id] = L.circleMarker([n.lat, n.lon]).addTo(map);
-                    markers[id].setStyle({ color: statusColor, fillColor: statusColor, fillOpacity: 0.6, radius: 8 });
-                    markers[id].bindTooltip(`${n.node_id} | ${n.latency_ms}ms`);
+    <!-- Action Bar -->
+    <div id="actbar">
+      <button class="btn br" onclick="advanceKC()">▶ Kill Chain</button>
+      <button class="btn bo" onclick="ddilFail()">⚡ DDIL</button>
+      <button class="btn bc" onclick="socA('scan')">🔍 Scan</button>
+      <button class="btn bg" onclick="socA('patch')">🛡 Patch All</button>
+      <button class="btn bp" onclick="socA('block_ioc')">🚫 Block IOCs</button>
+      <button class="btn br" onclick="resetSim()" style="flex:.4">↺</button>
+    </div>
+  </div>
 
-                    tel.innerHTML += `
-                        <div class="p-3 bg-slate-900 rounded border-l-2" style="border-color: ${statusColor}">
-                            <div class="flex justify-between items-center mb-1 text-[10px]">
-                                <span class="font-bold">${n.node_id}</span>
-                                <span class="text-blue-400 font-mono">${n.latency_ms}ms</span>
-                            </div>
-                            <div class="w-full bg-slate-700 h-1 rounded-full overflow-hidden mb-1">
-                                <div class="bg-emerald-500 h-full transition-all duration-700" style="width: ${n.workload_share}%"></div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-y-1 text-[9px] text-slate-500 font-mono">
-                                <span>BATT: ${n.battery}%</span>
-                                <span class="text-right">SHARD: ${n.workload_share.toFixed(1)}%</span>
-                                <span class="text-emerald-600 font-bold uppercase text-[8px]">LIFE: ${n.ttf_minutes}m</span>
-                                <span class="text-right uppercase text-[8px]">${n.security_status}</span>
-                            </div>
-                        </div>`;
-                }
-            } catch (err) { console.error(err); }
-        }
+  <!-- ═══ RIGHT — Always-visible intel panel ═══ -->
+  <div id="right">
 
-        async function triggerFail() { 
-            addLog("<span class='text-red-400'>ALERT:</span> Triggering DDIL Connectivity Failure...");
-            const res = await fetch('/simulate-failure', {method: 'POST'}); 
-            const data = await res.json();
-            addLog(data.message);
-            update(); 
-        }
+    <!-- Node Telemetry -->
+    <div class="psec">
+      <div class="ptitle">Node Telemetry <span class="pbadge" id="node-badge">8 active</span></div>
+      <div id="telemetry"></div>
+    </div>
 
-        async function triggerCyber() {
-            addLog("<span class='text-orange-400 font-bold'>CTI:</span> Analyzing Indicators of Compromise...");
-            const res = await fetch('/cyber-scan', {method: 'POST'});
-            const data = await res.json();
-            addLog(data.message);
-            update();
-        }
+    <!-- SOC Console -->
+    <div class="psec">
+      <div class="ptitle">SOC Console <span class="pbadge" id="alert-badge">0 alerts</span></div>
+      <div id="soclog">> BridgeIT CTI v2 online. WebSocket active.<br>> WannaCry / MS17-010 profile loaded.<br>> Monitoring 8 nodes. THREAT: CLEAR.</div>
+      <select id="node-sel"><option value="">— Select node for targeted action —</option></select>
+      <div class="socgrid">
+        <button class="btn br" onclick="socT('isolate')">🔒 Isolate</button>
+        <button class="btn bo" onclick="socT('patch')">💊 Patch Node</button>
+        <button class="btn bg" onclick="socT('restore')">♻ Restore</button>
+        <button class="btn bc" onclick="exportSTIX()">📦 STIX</button>
+        <button class="btn bp" onclick="window.open('/export-mission')" style="grid-column:span 2">📋 Full Mission Report</button>
+      </div>
+    </div>
 
-        setInterval(update, 2000); update();
-    </script>
+    <!-- Threat Timeline -->
+    <div class="psec">
+      <div class="ptitle">Threat Timeline <span class="pbadge" id="tl-badge">0 events</span></div>
+      <div id="timeline-list">
+        <div class="empty-msg">No events yet. Advance the kill chain.</div>
+      </div>
+    </div>
+
+    <!-- IOC Feed -->
+    <div class="psec">
+      <div class="ptitle">IOC Feed <span class="pbadge" id="ioc-badge">0 hits</span></div>
+      <div id="ioc-list">
+        <div class="empty-msg">No IOCs detected yet.</div>
+      </div>
+    </div>
+
+    <!-- MITRE ATT&CK -->
+    <div class="psec">
+      <div class="ptitle">MITRE ATT&CK <span class="pbadge">WannaCry TTPs</span></div>
+      <div id="mitre-matrix"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+const SC  = s => ({CLEAN:'#00ff88',SUSPICIOUS:'#ffd700',QUARANTINED:'#ff8c00',ENCRYPTED:'#ff2244'}[s]||'#00ff88');
+const CC  = v => v>=9?'#ff2244':v>=7?'#ff8c00':v>=4?'#ffd700':'#00ff88';
+const SEV = s => ({CRITICAL:'#ff2244',HIGH:'#ff8c00',MEDIUM:'#ffd700',LOW:'#00d4ff',INFO:'#3d5a72'}[s]||'#3d5a72');
+
+let state={}, markers={}, alertCount=0, activeTab='map';
+
+// ── MAP ──────────────────────────────────────────────────
+const map = L.map('map',{zoomControl:true,attributionControl:false}).setView([17.4065,78.4772],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  {maxZoom:19,subdomains:'abcd'}).addTo(map);
+setTimeout(()=>map.invalidateSize(),300);
+window.addEventListener('resize',()=>{ if(activeTab==='map') map.invalidateSize(); });
+
+// ── TAB SWITCH ───────────────────────────────────────────
+function switchTab(name){
+  activeTab=name;
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    t.classList.toggle('active',['map','topo','score'][i]===name);
+  });
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='map') setTimeout(()=>map.invalidateSize(),50);
+  if(name==='topo'&&state.nodes) renderTopology();
+  if(name==='score'&&state.defender) renderScore(state.defender);
+}
+
+// ═══════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════
+let ws, wsRetry=0;
+function connectWS(){
+  const proto=location.protocol==='https:'?'wss':'ws';
+  ws=new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen =()=>{ document.getElementById('ws-dot').classList.add('ok'); wsRetry=0; };
+  ws.onclose=()=>{ document.getElementById('ws-dot').classList.remove('ok');
+    setTimeout(connectWS,Math.min(5000,++wsRetry*1000)); };
+  ws.onerror=()=>ws.close();
+  ws.onmessage=e=>{ try{ const m=JSON.parse(e.data); if(m.data) applyState(m.data); }catch(_){} };
+}
+connectWS();
+// fallback poll
+setInterval(async()=>{
+  if(!ws||ws.readyState!==1){
+    try{ const r=await fetch('/status'); applyState(await r.json()); }catch(_){}
+  }
+},3000);
+
+// ═══════════════════════════════════════════
+// APPLY STATE
+// ═══════════════════════════════════════════
+function applyState(d){
+  state=d;
+  renderHeader(d);
+  renderKCBar(d.kill_chain_stages||[],d.kill_chain_phase||0);
+  renderTelemetry(d.nodes||{});
+  renderMap(d.nodes||{});
+  renderTimeline(d.timeline||[]);
+  renderIOC(d.recent_iocs||[]);
+  renderMitre(d.mitre_matrix||{},d.wannacry_ttps||[]);
+  if(activeTab==='topo') renderTopology();
+  if(activeTab==='score') renderScore(d.defender||{});
+}
+
+// ── Header ───────────────────────────────────────────────
+function renderHeader(d){
+  document.getElementById('h-acc').textContent  =(d.accuracy||0)+'%';
+  document.getElementById('h-ioc').textContent  =d.ioc_count||0;
+  document.getElementById('h-enc').textContent  =(d.encrypted_nodes||[]).length;
+  document.getElementById('h-score').textContent=d.defender?.total_score??'--';
+  document.getElementById('h-cvss').textContent =d.defender?.avg_cvss??'0.0';
+  const b=document.getElementById('threat-badge');
+  const lv=d.threat_level||'CLEAR';
+  b.className=`tbadge t${lv}`; b.textContent=`THREAT: ${lv}`;
+}
+
+// ── Kill Chain Bar ───────────────────────────────────────
+function renderKCBar(stages,phase){
+  document.getElementById('kc-stages').innerHTML=stages.map(s=>`
+    <div class="kcs${s.active?' on':''}" style="${s.active?`color:${s.color};border-color:${s.color};background:${s.color}14`:''}">
+      ${s.stage.split(' ')[0]}
+      <span class="ttp">${s.technique_id}</span>
+      ${s.active?`<span class="cv" style="color:${CC(s.cvss)}">${s.cvss.toFixed(1)}</span>`:''}
+    </div>`).join('');
+  const p=document.getElementById('kc-prog');
+  p.textContent=phase===0?'Phase 0 / 7 — Inactive':phase>=7?'Phase 7/7 — ⚠ IMPACT':`Phase ${phase}/7 — ${stages[phase-1]?.stage||''}`;
+  p.style.color=phase>=6?'#ff2244':phase>=4?'#ff8c00':'#ffd700';
+}
+
+// ── Map markers ──────────────────────────────────────────
+function renderMap(nodes){
+  for(const [id,n] of Object.entries(nodes)){
+    const c=SC(n.security_status);
+    if(!markers[id]) markers[id]=L.circleMarker([n.lat,n.lon]).addTo(map);
+    markers[id].setStyle({color:c,fillColor:c,
+      fillOpacity:n.is_connected?.75:.15,
+      radius:n.security_status==='ENCRYPTED'?10:7,
+      weight:n.security_status==='ENCRYPTED'?2:1});
+    markers[id].bindTooltip(
+      `<b>${id}</b><br>${n.security_status} | ${n.latency_ms}ms | ${n.battery.toFixed(1)}%`+
+      (n.cvss_score>0?`<br>CVSS: <b style="color:${CC(n.cvss_score)}">${n.cvss_score}</b>`:'')+
+      `<br>${n.os_patched?'✓ Patched':'⚠ Vulnerable (MS17-010)'}`,
+      {className:'leaflet-tooltip'});
+  }
+}
+
+// ── Node Telemetry ───────────────────────────────────────
+function renderTelemetry(nodes){
+  const el=document.getElementById('telemetry');
+  const sel=document.getElementById('node-sel');
+  const prev=sel.value;
+  sel.innerHTML='<option value="">— Select node for targeted action —</option>';
+  let active=0,html='';
+  for(const [id,n] of Object.entries(nodes)){
+    const c=SC(n.security_status);
+    const bc=n.battery>50?'#00ff88':n.battery>20?'#ffd700':'#ff2244';
+    if(n.is_connected) active++;
+    const enc=n.security_status==='ENCRYPTED'?'animation:enc-flicker .35s infinite;':'';
+    html+=`<div class="ncard" style="border-left-color:${c};${enc}"
+        onclick="document.getElementById('node-sel').value='${id}'">
+      <div class="ntop">
+        <span class="nid" style="color:${c}">${id}</span>
+        <span class="nlat">${n.latency_ms}ms</span>
+      </div>
+      <div class="bb"><div class="bf" style="width:${n.battery}%;background:${bc}"></div></div>
+      <div class="nm">
+        <span>BATT: ${n.battery.toFixed(1)}%</span>
+        <span style="text-align:right">SHARD: ${n.workload_share.toFixed(1)}%</span>
+        <span style="color:${n.os_patched?'var(--green)':'var(--red)'}">${n.os_patched?'✓ PATCHED':'⚠ VULN'}</span>
+        <span style="text-align:right;color:${c};font-weight:bold">${n.security_status}</span>
+        ${n.cvss_score>0?`<span style="color:${CC(n.cvss_score)};font-weight:bold;grid-column:span 2">CVSS: ${n.cvss_score}</span>`:''}
+      </div>
+    </div>`;
+    sel.innerHTML+=`<option value="${id}">${id} [${n.security_status}]</option>`;
+  }
+  el.innerHTML=html;
+  sel.value=prev;
+  document.getElementById('node-badge').textContent=`${active} active`;
+}
+
+// ── Threat Timeline ──────────────────────────────────────
+function renderTimeline(events){
+  const el=document.getElementById('timeline-list');
+  document.getElementById('tl-badge').textContent=`${events.length} events`;
+  if(!events.length){
+    el.innerHTML='<div class="empty-msg">No events yet.</div>'; return;
+  }
+  el.innerHTML=[...events].reverse().map(e=>`
+    <div class="tl-item">
+      <div class="tl-dot" style="background:${SEV(e.severity)}"></div>
+      <div class="tl-body">
+        <div class="tl-hd">
+          <span style="color:var(--muted)">+${e.elapsed}s</span>
+          <span style="color:${SEV(e.severity)};font-weight:bold">[${e.stage}]</span>
+          <span style="color:var(--cyan)">${e.node}</span>
+          ${e.cvss>0?`<span class="tl-cv" style="background:${CC(e.cvss)}22;color:${CC(e.cvss)};border:1px solid ${CC(e.cvss)}">CVSS ${e.cvss}</span>`:''}
+        </div>
+        <div style="color:var(--text);margin-top:1px">${e.event}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ── IOC Feed ─────────────────────────────────────────────
+function renderIOC(iocs){
+  const el=document.getElementById('ioc-list');
+  document.getElementById('ioc-badge').textContent=`${state.ioc_count||0} hits`;
+  if(!iocs.length){
+    el.innerHTML='<div class="empty-msg">No IOCs detected yet.</div>'; return;
+  }
+  const cls={MD5:'hash',SHA256:'hash',IP:'ip',DOMAIN:'dom',SCAN:'scan',REG:'reg'};
+  el.innerHTML=[...iocs].reverse().map(ioc=>`
+    <div class="ioc-row">
+      <div>
+        <span class="it ${cls[ioc.type]||'scan'}">${ioc.type}</span>
+        <div class="cb"><div class="cf" style="width:${ioc.confidence}%"></div></div>
+      </div>
+      <div>
+        <div class="iv">${ioc.value}${ioc.cvss>0?` <span style="font-size:7px;color:${CC(ioc.cvss)}">CVSS ${ioc.cvss}</span>`:''}</div>
+        <div class="id2">${ioc.description} — Conf: ${ioc.confidence}%</div>
+      </div>
+    </div>`).join('');
+}
+
+// ── MITRE Matrix ─────────────────────────────────────────
+function renderMitre(matrix,active){
+  const aSet=new Set(active);
+  document.getElementById('mitre-matrix').innerHTML=
+    Object.entries(matrix).map(([tac,techs])=>`
+      <div class="tactic">
+        <div class="tac-n">${tac}</div>
+        <div class="chips">${techs.map(([tid,name])=>`
+          <div class="chip${aSet.has(tid)?' active':''}" title="${tid}: ${name}">
+            ${tid}<br><span style="font-size:5.5px;opacity:.7">${name.substring(0,12)}</span>
+          </div>`).join('')}
+        </div>
+      </div>`).join('');
+}
+
+// ── Topology ─────────────────────────────────────────────
+function renderTopology(){
+  if(!state.nodes||!state.topology_edges) return;
+  const svg=document.getElementById('topo-svg');
+  const W=svg.clientWidth||700, H=svg.clientHeight||440;
+  const POS={
+    'HQ_CLOUD_ALPHA':[.5,.1],
+    'MOBILE_EDGE_01':[.25,.38],'MOBILE_EDGE_02':[.75,.38],
+    'UAV_SWARM_01':[.08,.68],'UAV_SWARM_02':[.22,.76],
+    'UAV_SWARM_03':[.5,.68],'UAV_SWARM_04':[.78,.76],'UAV_SWARM_05':[.92,.68],
+  };
+  const px=id=>(POS[id]||[.5,.5])[0]*W;
+  const py=id=>(POS[id]||[.5,.5])[1]*H;
+  let html='';
+  for(const e of state.topology_edges){
+    const col=e.infected?'#ff2244':e.active?'#1e3348':'#0d1f2d';
+    const w=e.infected?2.5:e.active?1.5:.8;
+    html+=`<line x1="${px(e.src)}" y1="${py(e.src)}" x2="${px(e.dst)}" y2="${py(e.dst)}"
+      stroke="${col}" stroke-width="${w}">
+      ${e.infected?`<animate attributeName="stroke-opacity" values="1;0.2;1" dur="0.9s" repeatCount="indefinite"/>`:''}
+    </line>`;
+    if(e.infected){
+      const mx=(px(e.src)+px(e.dst))/2, my=(py(e.src)+py(e.dst))/2;
+      html+=`<text x="${mx}" y="${my-5}" fill="#ff2244" font-size="7"
+        font-family="Share Tech Mono,monospace" text-anchor="middle">SMB</text>`;
+    }
+  }
+  Object.entries(state.nodes).forEach(([id,n])=>{
+    const x=px(id),y=py(id),c=SC(n.security_status);
+    const r=n.node_type==='Cloud'?18:n.node_type==='Tactical_Edge'?14:10;
+    const icon=n.security_status==='ENCRYPTED'?'🔒':n.node_type==='Cloud'?'☁':n.node_type==='Tactical_Edge'?'📡':'✈';
+    const anim=n.security_status==='ENCRYPTED'
+      ?`<animate attributeName="opacity" values="1;0.3;1" dur="0.35s" repeatCount="indefinite"/>`
+      :n.security_status==='SUSPICIOUS'
+      ?`<animate attributeName="r" values="${r};${r+3};${r}" dur="1.5s" repeatCount="indefinite"/>`:'';
+    html+=`<g style="cursor:pointer" onclick="document.getElementById('node-sel').value='${id}'" title="${id}&#10;${n.security_status}">
+      <circle cx="${x}" cy="${y}" r="${r}" fill="${c}1a" stroke="${c}"
+        stroke-width="${n.security_status==='ENCRYPTED'?2.5:1.5}">${anim}</circle>
+      <text x="${x}" y="${y+1}" fill="${c}" font-size="${r>12?10:8}"
+        text-anchor="middle" dominant-baseline="middle">${icon}</text>
+      <text x="${x}" y="${y+r+10}" fill="${c}" font-size="7"
+        text-anchor="middle" font-family="Share Tech Mono,monospace">
+        ${id.replace('UAV_SWARM_','UAV').replace('MOBILE_EDGE_','EDGE').replace('HQ_CLOUD_ALPHA','HQ')}
+      </text>
+      ${n.cvss_score>0?`<text x="${x}" y="${y+r+19}" fill="${CC(n.cvss_score)}" font-size="6"
+        text-anchor="middle" font-family="Share Tech Mono,monospace">CVSS:${n.cvss_score}</text>`:''}
+    </g>`;
+  });
+  // Legend
+  [['#00ff88','CLEAN'],['#ffd700','SUSPICIOUS'],['#ff8c00','QUARANTINED'],['#ff2244','ENCRYPTED']].forEach(([c,l],i)=>{
+    html+=`<circle cx="20" cy="${H-60+(i*14)}" r="4" fill="${c}22" stroke="${c}" stroke-width="1.2"/>
+      <text x="30" y="${H-56+(i*14)}" fill="#3d5a72" font-size="8" font-family="Share Tech Mono,monospace">${l}</text>`;
+  });
+  svg.innerHTML=html;
+}
+
+// ── Defender Score ───────────────────────────────────────
+function renderScore(d){
+  if(!d||d.total_score===undefined) return;
+  const gc={'A':'#00ff88','B':'#00d4ff','C':'#ffd700','D':'#ff8c00','F':'#ff2244'};
+  const c=gc[d.grade]||'#4a6278';
+  document.getElementById('sc-num').textContent=d.total_score;
+  document.getElementById('sc-num').style.color=c;
+  document.getElementById('sc-grade').textContent=`Grade: ${d.grade}`;
+  document.getElementById('sc-grade').style.color=c;
+  const bars=[{l:'Survival',v:d.survival_score,m:40,c:'#00ff88'},{l:'Patch',v:d.patch_score,m:25,c:'#00d4ff'},
+    {l:'Actions',v:d.action_score,m:20,c:'#ffd700'},{l:'IOC Block',v:d.ioc_block_score,m:15,c:'#a855f7'}];
+  document.getElementById('score-bars').innerHTML=bars.map(b=>`
+    <div class="sbar-row">
+      <span class="sbar-lbl">${b.l}</span>
+      <div class="sbar-track"><div class="sbar-fill" style="width:${(b.v/b.m)*100}%;background:${b.c}"></div></div>
+      <span class="sbar-val">${b.v}/${b.m}</span>
+    </div>`).join('');
+  document.getElementById('score-grid').innerHTML=`
+    <div class="sg-c"><div class="sg-v" style="color:#00ff88">${d.nodes_clean}</div><div class="sg-l">Clean</div></div>
+    <div class="sg-c"><div class="sg-v" style="color:#ff2244">${d.nodes_encrypted}</div><div class="sg-l">Encrypted</div></div>
+    <div class="sg-c"><div class="sg-v" style="color:#00d4ff">${d.nodes_patched}</div><div class="sg-l">Patched</div></div>
+    <div class="sg-c"><div class="sg-v" style="color:#ffd700">${d.defender_actions}</div><div class="sg-l">Actions</div></div>
+    <div class="sg-c"><div class="sg-v" style="color:#a855f7">${d.nodes_saved}</div><div class="sg-l">Saved</div></div>
+    <div class="sg-c"><div class="sg-v" style="color:${CC(d.avg_cvss)}">${d.avg_cvss}</div><div class="sg-l">Avg CVSS</div></div>`;
+}
+
+// ═══════════════════════════════════════════
+// SOC LOG
+// ═══════════════════════════════════════════
+function log(msg,color='var(--green)'){
+  const el=document.getElementById('soclog');
+  const ts=new Date().toLocaleTimeString([],{hour12:false});
+  alertCount++;
+  document.getElementById('alert-badge').textContent=`${alertCount} alerts`;
+  el.innerHTML+=`<br><span style="color:var(--muted)">[${ts}]</span> <span style="color:${color}">${msg}</span>`;
+  el.scrollTop=el.scrollHeight;
+}
+
+// ═══════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════
+async function post(url,body={}){
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  return r.json();
+}
+
+async function advanceKC(){
+  log('Advancing WannaCry kill chain...','var(--yellow)');
+  const d=await post('/kill-chain/advance');
+  const cc={1:'#6366f1',2:'#8b5cf6',3:'#f59e0b',4:'#f97316',5:'#ef4444',6:'#dc2626',7:'#ff2244'};
+  if(d.message) log(`${d.message}${d.cvss?` [CVSS ${d.cvss}]`:''}`,cc[String(d.phase)]||'var(--orange)');
+}
+async function ddilFail(){
+  log('DDIL failure triggered...','var(--orange)');
+  const d=await post('/simulate-failure');
+  log(d.message,'var(--cyan)');
+}
+async function socA(action){
+  const d=await post('/soc/action',{action});
+  log(d.message,d.success?'var(--green)':'var(--red)');
+}
+async function socT(action){
+  const t=document.getElementById('node-sel').value||null;
+  if(!t&&['isolate','restore'].includes(action)){log('Select a node first.','var(--red)');return;}
+  const d=await post('/soc/action',{action,target_node:t});
+  log(d.message,d.success?'var(--green)':'var(--red)');
+}
+async function resetSim(){
+  await post('/kill-chain/reset');
+  markers={}; alertCount=0;
+  document.getElementById('alert-badge').textContent='0 alerts';
+  document.getElementById('soclog').innerHTML='> Simulation reset. All nodes CLEAN.';
+  map.eachLayer(l=>{ if(l instanceof L.CircleMarker) map.removeLayer(l); });
+  log('CTI simulation reset.','var(--cyan)');
+}
+async function exportSTIX(){
+  log('Generating STIX 2.1 bundle...','var(--purple)');
+  window.open('/export-stix');
+}
+
+// ── Init MITRE (static, always shown) ───────────────────
+renderMitre({
+  "Initial Access":  [["T1190","Exploit Public App"],["T1566","Phishing"],["T1133","External Remote"]],
+  "Execution":       [["T1059","Cmd Interpreter"],["T1055","Process Injection"],["T1106","Native API"]],
+  "Persistence":     [["T1543","Create Sys Process"],["T1547","Boot Autostart"],["T1136","Create Account"]],
+  "Defense Evasion": [["T1562","Impair Defenses"],["T1070","Indicator Removal"],["T1036","Masquerading"]],
+  "Lateral Movement":[["T1021","Remote Services"],["T1210","Exploit Remote"],["T1021.002","SMB Shares"]],
+  "Collection":      [["T1005","Local Sys Data"],["T1039","Network Share"],["T1025","Removable Media"]],
+  "Impact":          [["T1486","Data Encrypted"],["T1498","Network DoS"],["T1529","Sys Shutdown"]],
+},["T1190","T1055","T1543","T1562","T1021","T1210","T1486","T1595","T1587.001","T1071","T1021.002"]);
+</script>
 </body>
 </html>

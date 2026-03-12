@@ -1,0 +1,51 @@
+# Python cache files
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+
+venv/
+.env/
+.venv/
+
+# Environment variables
+
+.env
+
+# Python packaging
+
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Logs and temporary files
+
+*.log
+*.tmp
+*.swp
+
+# OS files
+
+.DS_Store
+Thumbs.db
+
+# IDE / Editor settings
+
+.vscode/
+.idea/
+
+# Jupyter notebooks checkpoints
+
+.ipynb_checkpoints/
+
+# Local databases
+
+*.db
+*.sqlite3
+
+# Exported mission logs
+
+mission_logs.txt
